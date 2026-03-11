@@ -6,51 +6,60 @@ import time
 import csv
 import os
 
-# 1. Указываем путь к папке
+# --- НАСТРОЙКИ ---
 working_dir = '/Users/vitalijkovalenko/Downloads/VSCod'
 file_path = os.path.join(working_dir, 'results.csv')
+keywords = ["Zuckerberg", "Threads", "Meta", "AI"]
+accounts = [
+    "https://www.threads.net/@zuck",
+    "https://www.threads.net/@mosseri"
+]
 
-# Настройка браузера
 service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
 
+all_found_data = []
+
 try:
-    url = "https://www.threads.net/@zuck"
-    driver.get(url)
-    print(f"📍 Работаем в папке: {working_dir}")
-    print("⏳ Загружаем посты...")
-    time.sleep(5) 
+    for url in accounts:
+        driver.get(url)
+        print(f"🕵️ Изучаем профиль: {url}")
+        time.sleep(5) 
 
-    # Находим элементы
-    posts = driver.find_elements(By.CSS_SELECTOR, "span") 
-    found_data = []
-    keywords = ["Zuckerberg", "Threads", "Meta", "AI"]
+        # СКРОЛЛИНГ (2 раза)
+        for i in range(2):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            print(f"  📜 Прокрутка {i+1}...")
+            time.sleep(4)
 
-    print(f"🔍 Начинаем анализ ({len(posts)} элементов)...")
+        # СБОР ПОСТОВ
+        posts = driver.find_elements(By.CSS_SELECTOR, "span")
+        for post in posts:
+            try:
+                # ОЧИСТКА: убираем лишние пробелы и переносы строк
+                text = post.text.replace('\n', ' ').strip()
+                
+                if len(text) > 10:
+                    for word in keywords:
+                        if word.lower() in text.lower():
+                            all_found_data.append({
+                                "account": url,
+                                "keyword": word, 
+                                "content": text[:150] # Берем чуть больше текста
+                            })
+                            print(f"  ✨ Найдено совпадение: {word}")
+                            break 
+            except:
+                continue
 
-    for post in posts:
-        try:
-            text = post.text
-            if text:
-                for word in keywords:
-                    if word.lower() in text.lower() and len(text) > 10:
-                        found_data.append({"keyword": word, "content": text[:100].strip() + "..."})
-                        print(f"✨ Найдено: {word}")
-                        break 
-        except Exception:
-            continue
-
-    # 2. ЗАПИСЬ В ФАЙЛ (теперь строго внутри блока try с правильным отступом)
-    if found_data:
+    # ЗАПИСЬ ВСЕХ ДАННЫХ
+    if all_found_data:
         with open(file_path, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=["keyword", "content"])
+            writer = csv.DictWriter(file, fieldnames=["account", "keyword", "content"])
             writer.writeheader()
-            writer.writerows(found_data)
-        print(f"✅ Готово! Файл создан: {file_path}")
-    else:
-        print("xml Совпадений не найдено, файл не создан.")
+            writer.writerows(all_found_data)
+        print(f"\n🏆 УСПЕХ! Данные из всех профилей сохранены в: {file_path}")
 
 finally:
-    # 3. Закрываем браузер в любом случае
     driver.quit()
     print("🤖 Браузер закрыт.")
